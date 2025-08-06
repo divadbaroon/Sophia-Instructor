@@ -1,301 +1,431 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Settings } from "lucide-react";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX } from "lucide-react";
 import { Session } from "@/types";
-import { sessionConfigs } from "@/lib/simulations/data/sessionConfigs";
-import { runAllSimulations } from "@/lib/simulations/simulationApi";
-import { ConversationReplayModal } from "@/components/simulations/ConversationReplayModal";
-import { SessionCard } from "@/components/simulations/SessionCard";
-import { CompetencyFilter } from "@/components/simulations/CompetencyFilter";
-import { EvaluationCriteriaModal, EvaluationCriterion } from "@/components/simulations/EvaluationCriteriaModal";
-import { VoiceSettingsModal } from "@/components/simulations/VoiceSettingsModal";
-import { OverallReport } from "@/components/simulations/OverallReport";
-import { AgentConfiguration } from "@/components/simulations/AgentConfiguration";
+import { EvaluationCriterion } from "@/components/simulations/EvaluationCriteriaModal";
 
-// Helper function to load criteria from localStorage
-const loadCriteriaFromStorage = (): EvaluationCriterion[] => {
-  if (typeof window === 'undefined') return [];
-  
-  try {
-    const stored = localStorage.getItem('evaluationCriteria');
-    if (stored) {
-      return JSON.parse(stored);
+interface ConversationReplayModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedSession: Session | null;
+  evaluationCriteria?: EvaluationCriterion[];
+}
+
+export function ConversationReplayModal({
+  isOpen,
+  onOpenChange,
+  selectedSession,
+  evaluationCriteria = []
+}: ConversationReplayModalProps) {
+  const [activeTab, setActiveTab] = useState<"conversation" | "analysis">("conversation");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [currentlyPlayingMessageIndex, setCurrentlyPlayingMessageIndex] = useState<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const currentMessageRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Function to stop all audio
+  const stopAllAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
-  } catch (error) {
-    console.error('Error loading criteria from localStorage:', error);
-  }
-  
-  return [];
-};
+    setIsAudioPlaying(false);
+    setCurrentlyPlayingMessageIndex(null);
+  };
 
-// Default evaluation criteria
-const defaultCriteria: EvaluationCriterion[] = [
-  {
-    id: "teaching_effectiveness",
-    name: "Teaching Effectiveness",
-    conversationGoalPrompt: "The teacher effectively explained the concepts and helped the student understand."
-  }
-];
+  // Scroll to current message when it changes
+  useEffect(() => {
+    if (currentMessageRef.current && scrollContainerRef.current && currentMessageIndex >= 0) {
+      currentMessageRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [currentMessageIndex]);
 
-export default function SimulationReplayDashboard() {
-  const [sessions, setSessions] = useState<Session[]>(
-    sessionConfigs.map(config => ({ ...config, status: "pending" }))
-  );
-  const [isRunning, setIsRunning] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [competencyFilter, setCompetencyFilter] = useState<"all" | "beginner" | "intermediate" | "advanced">("all");
-  const [activeTab, setActiveTab] = useState<"configuration" | "sessions" | "report">("configuration");
-  const [currentAgentPrompt, setCurrentAgentPrompt] = useState<string>("");
-  
-  // Agent info state for the OverallReport component
-  const [currentAgentInfo, setCurrentAgentInfo] = useState<{
-    name: string;
-    first_message: string;
-    voice_id: string;
-  }>({
-    name: "",
-    first_message: "",
-    voice_id: ""
-  });
-  
-  // Evaluation Criteria State - Initialize from localStorage
-  const [evaluationCriteria, setEvaluationCriteria] = useState<EvaluationCriterion[]>(() => {
-    const storedCriteria = loadCriteriaFromStorage();
-    return storedCriteria.length > 0 ? storedCriteria : defaultCriteria;
-  });
-  const [isCriteriaModalOpen, setIsCriteriaModalOpen] = useState(false);
+  // Auto-play next message when current finishes (if playing)
+  useEffect(() => {
+    if (isPlaying && currentMessageIndex >= 0 && selectedSession?.simulationResult) {
+      const filteredMessages = selectedSession.simulationResult.simulatedConversation
+        .filter(turn => turn.message && turn.message !== "==! END_CALL!==");
+      
+      const currentMessage = filteredMessages[currentMessageIndex];
+      if (currentMessage?.audioData) {
+        playMessageAudio(currentMessage.audioData, currentMessageIndex, true);
+      }
+    }
+  }, [currentMessageIndex, isPlaying]);
 
-  // Voice Settings State
-  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
+  const playMessageAudio = (audioData: string, messageIndex?: number, autoAdvance: boolean = false) => {
+    try {
+      // Stop any currently playing audio
+      stopAllAudio();
 
-  console.log("🔄 Component rendered with sessions:", sessions.map(s => ({ id: s.id, status: s.status })));
+      // Create and play new audio
+      const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
+      audioRef.current = audio;
+      
+      if (messageIndex !== undefined) {
+        setCurrentlyPlayingMessageIndex(messageIndex);
+      }
+      
+      audio.onloadstart = () => {
+        console.log("🎵 Audio loading started...");
+        setIsAudioPlaying(true);
+      };
+      
+      audio.oncanplaythrough = () => {
+        console.log("🎵 Audio ready to play");
+      };
+      
+      audio.onplay = () => {
+        console.log("🎵 Audio started playing");
+        setIsAudioPlaying(true);
+      };
+      
+      audio.onended = () => {
+        console.log("🎵 Audio finished playing");
+        setIsAudioPlaying(false);
+        setCurrentlyPlayingMessageIndex(null);
+        
+        // Auto-advance to next message if playing and not at the end
+        if (autoAdvance && isPlaying && selectedSession?.simulationResult) {
+          const filteredMessages = selectedSession.simulationResult.simulatedConversation
+            .filter(turn => turn.message && turn.message !== "==! END_CALL!==");
+          
+          if (currentMessageIndex < filteredMessages.length - 1) {
+            setCurrentMessageIndex(currentMessageIndex + 1);
+          } else {
+            // End of conversation, stop playing
+            setIsPlaying(false);
+          }
+        }
+      };
+      
+      audio.onerror = (e) => {
+        console.error("🎵 Audio playback error:", e);
+        setIsAudioPlaying(false);
+        setCurrentlyPlayingMessageIndex(null);
+      };
 
-  const getDifficultyColor = (difficulty: Session["difficulty"]) => {
-    switch (difficulty) {
-      case "beginner":
-        return "bg-green-100 text-green-800";
-      case "intermediate":
-        return "bg-yellow-100 text-yellow-800";
-      case "advanced":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      audio.play().catch(error => {
+        console.error("🎵 Failed to play audio:", error);
+        setIsAudioPlaying(false);
+        setCurrentlyPlayingMessageIndex(null);
+      });
+
+    } catch (error) {
+      console.error("🎵 Error creating audio:", error);
+      setIsAudioPlaying(false);
+      setCurrentlyPlayingMessageIndex(null);
     }
   };
 
-  const filteredSessions = sessions.filter(session => {
-    const competencyMatch = competencyFilter === "all" || session.difficulty === competencyFilter;
-    return competencyMatch;
-  });
-
-  const handleRunAllSimulations = () => {
-    runAllSimulations(sessions, setSessions, setIsRunning, evaluationCriteria);
+  const handlePlayToggle = () => {
+    if (isPlaying) {
+      stopAllAudio();
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(true);
+      // Will trigger useEffect to play current message
+    }
   };
 
-  const handleSessionClick = (session: Session) => {
-    console.log("🖱️ Session selected:", {
-      id: session.id,
-      studentName: session.studentName,
-      status: session.status,
-      hasResult: !!session.simulationResult
-    });
-    setSelectedSession(session);
-    setIsModalOpen(true);
+  const handleSkipForward = () => {
+    if (selectedSession?.simulationResult) {
+      const filteredMessages = selectedSession.simulationResult.simulatedConversation
+        .filter(turn => turn.message && turn.message !== "==! END_CALL!==");
+      
+      if (currentMessageIndex < filteredMessages.length - 1) {
+        // Stop current audio before moving to next
+        stopAllAudio();
+        setCurrentMessageIndex(currentMessageIndex + 1);
+      }
+    }
   };
 
-  const handleCriteriaSave = (newCriteria: EvaluationCriterion[]) => {
-    setEvaluationCriteria(newCriteria);
-    console.log("📊 Evaluation criteria updated:", newCriteria.map(c => c.name));
+  const handleSkipBack = () => {
+    if (currentMessageIndex > 0) {
+      // Stop current audio before moving to previous
+      stopAllAudio();
+      setCurrentMessageIndex(currentMessageIndex - 1);
+    }
   };
 
-  // Handle agent info updates from AgentConfiguration
-  const handleAgentInfoUpdate = (agentInfo: {
-    name: string;
-    first_message: string;
-    voice_id: string;
-  }) => {
-    setCurrentAgentInfo(agentInfo);
-    console.log("🤖 Agent info updated:", agentInfo);
+  const handleManualPlayAudio = (audioData: string, messageIndex: number) => {
+    // If this message is currently playing, stop it
+    if (currentlyPlayingMessageIndex === messageIndex && isAudioPlaying) {
+      stopAllAudio();
+    } else {
+      // Set this as the current message and play it
+      setCurrentMessageIndex(messageIndex);
+      playMessageAudio(audioData, messageIndex);
+    }
   };
 
-  // Handle prompt updates from OverallReport (when "Add" is clicked)
-  const handlePromptUpdate = (newPrompt: string) => {
-    setCurrentAgentPrompt(newPrompt);
-    console.log("📝 Prompt updated from OverallReport");
+  // Get filtered messages for display
+  const getFilteredMessages = () => {
+    if (!selectedSession?.simulationResult) return [];
+    return selectedSession.simulationResult.simulatedConversation
+      .filter(turn => turn.message && turn.message !== "==! END_CALL!==");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm mt-16">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                Conversation Simulations
-              </h1>
-              <p className="text-sm text-gray-500">
-                AI teacher-student conversation replays using ElevenLabs Simulation API
-              </p>
-            </div>
-            <Button
-              onClick={handleRunAllSimulations}
-              disabled={isRunning}
-              className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-4 py-2"
-            >
-              {isRunning ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Running Simulations...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Run Simulations
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>
+            {selectedSession ? `Conversation Replay: ${selectedSession.studentName}` : "Conversation Replay"}
+          </DialogTitle>
+          {selectedSession && (
+            <p className="text-sm text-gray-500 mt-1">
+              {selectedSession.description}
+            </p>
+          )}
+        </DialogHeader>
 
-        <div className="flex justify-center">
-          {/* Main Content Card */}
-          <Card className="w-full">
-            <CardHeader>
-              <div className="flex items-center justify-between">
+        {selectedSession ? (
+          <>
+            {selectedSession.status === "running" && (
+              <div className="text-blue-500 text-center py-8">
+                <span className="animate-pulse">Simulation in progress...</span>
+              </div>
+            )}
+            
+            {selectedSession.status === "pending" && (
+              <div className="text-gray-500 text-center py-8">
+                Simulation not run yet. Click &quot;Run Simulations&quot; to start.
+              </div>
+            )}
+            
+            {selectedSession.status === "error" && (
+              <div className="text-red-500 text-center py-8">
+                Simulation failed. Please try again.
+              </div>
+            )}
+
+            {selectedSession.status === "completed" && selectedSession.simulationResult && (
+              <>
                 {/* Tab Navigation */}
-                <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-1">
                   <Button
-                    variant={activeTab === "configuration" ? "default" : "ghost"}
+                    variant={activeTab === "conversation" ? "default" : "ghost"}
                     size="sm"
-                    onClick={() => setActiveTab("configuration")}
-                    className="h-8 px-4"
+                    onClick={() => setActiveTab("conversation")}
+                    className="flex-1 h-8"
                   >
-                    Configuration
+                    Conversation
                   </Button>
                   <Button
-                    variant={activeTab === "sessions" ? "default" : "ghost"}
+                    variant={activeTab === "analysis" ? "default" : "ghost"}
                     size="sm"
-                    onClick={() => setActiveTab("sessions")}
-                    className="h-8 px-4"
+                    onClick={() => setActiveTab("analysis")}
+                    className="flex-1 h-8"
                   >
-                    Simulated Testing
-                  </Button>
-                  <Button
-                    variant={activeTab === "report" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab("report")}
-                    className="h-8 px-4"
-                  >
-                    Performance Report
+                    Analysis
                   </Button>
                 </div>
 
-                {/* Action buttons - only show on sessions tab */}
-                {activeTab === "sessions" && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => setIsVoiceSettingsOpen(true)}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5 12a5 5 0 007.54.54l3-3a5 5 0 00-7.54-.54z" />
-                      </svg>
-                      Voice Settings
-                    </Button>
-                    <Button
-                      onClick={() => setIsCriteriaModalOpen(true)}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Evaluation Criteria
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Tab Content - Keep OverallReport always mounted but conditionally visible */}
-              <div style={{ display: activeTab === "configuration" ? "block" : "none" }}>
-                <AgentConfiguration 
-                  onPromptChange={setCurrentAgentPrompt} 
-                  onCriteriaUpdate={setEvaluationCriteria}
-                  onAgentInfoChange={handleAgentInfoUpdate}
-                />
-              </div>
-              
-              <div style={{ display: activeTab === "sessions" ? "block" : "none" }}>
-                <div className="space-y-4">
-                  {/* Filter Options */}
-                  <CompetencyFilter 
-                    competencyFilter={competencyFilter}
-                    setCompetencyFilter={setCompetencyFilter}
-                  />
+                {/* Tab Content */}
+                <div 
+                  ref={scrollContainerRef}
+                  className={`overflow-y-auto ${activeTab === "conversation" ? "max-h-[50vh] pb-16" : "max-h-[60vh]"}`}
+                >
+                  {activeTab === "conversation" && (
+                    <div className="space-y-3">
+                      {/* Show ALL messages at once */}
+                      {getFilteredMessages().map((turn, index) => (
+                        <div
+                          key={index}
+                          ref={index === currentMessageIndex ? currentMessageRef : null}
+                          className={`flex items-start gap-3 ${
+                            turn.role === "user" ? "" : "flex-row-reverse"
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-300 mr-2 ${
+                              turn.role === "user" 
+                                ? "bg-green-100 text-green-700" 
+                                : "bg-blue-100 text-blue-700"
+                            } ${
+                              currentMessageIndex === index
+                                ? "ring-2 ring-blue-400 shadow-lg scale-110"
+                                : ""
+                            }`}
+                          >
+                            {turn.role === "user" ? "👨‍🎓" : "🤖"}
+                          </div>
+                          <div
+                            className={`max-w-md p-3 rounded-lg transition-all duration-300 ${
+                              turn.role === "user"
+                                ? "bg-green-50 border border-green-200"
+                                : "bg-blue-50 border border-blue-200"
+                            } ${
+                              currentMessageIndex === index
+                                ? "ring-1 ring-blue-300 shadow-md scale-[1.02]"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="font-medium text-xs text-gray-600">
+                                {turn.role === "user" ? "Student" : "Teacher"}
+                              </div>
+                              {turn.audioData && (
+                                <Button
+                                  onClick={() => handleManualPlayAudio(turn.audioData!, index)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className={`h-6 w-6 p-0 hover:bg-gray-200 transition-colors ${
+                                    currentlyPlayingMessageIndex === index && isAudioPlaying 
+                                      ? "bg-blue-100 text-blue-600" 
+                                      : ""
+                                  }`}
+                                >
+                                  {currentlyPlayingMessageIndex === index && isAudioPlaying ? (
+                                    <VolumeX className="w-3 h-3" />
+                                  ) : (
+                                    <Volume2 className="w-3 h-3" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-900">{turn.message}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                  {/* Sessions */}
-                  {filteredSessions.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">
-                      No sessions match the current filters.
-                    </p>
-                  ) : (
-                    filteredSessions.map((session) => (
-                      <SessionCard
-                        key={session.id}
-                        session={session}
-                        onSessionClick={handleSessionClick}
-                        getDifficultyColor={getDifficultyColor}
-                      />
-                    ))
+                  {activeTab === "analysis" && (
+                    <div className="space-y-4">
+                      {/* Overall Status */}
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-medium mb-2">Overall Assessment</h4>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Badge 
+                            className={
+                              selectedSession.simulationResult.analysis.callSuccessful === "success"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }
+                          >
+                            {selectedSession.simulationResult.analysis.callSuccessful}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {selectedSession.simulationResult.analysis.transcriptSummary}
+                        </p>
+                      </div>
+
+                      {/* Evaluation Criteria */}
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-medium mb-3">Evaluation Results</h4>
+                        <div className="space-y-3">
+                          {Object.entries(selectedSession.simulationResult.analysis.evaluationCriteriaResults).map(([key, result]) => {
+                            // Helper function to get a readable name
+                            const getDisplayName = (key: string, result: any) => {
+                              if (result.name) return result.name;
+                              
+                              // Look up in the evaluation criteria that were passed to the modal
+                              const criterion = evaluationCriteria.find(c => c.id === key);
+                              if (criterion) return criterion.name;
+                              
+                              // Handle known default criteria
+                              if (key === 'teaching_effectiveness') return 'Teaching Effectiveness';
+                              
+                              // Fallback to formatting the key nicely
+                              return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            };
+
+                            return (
+                              <div key={key} className="border-l-4 border-gray-300 pl-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm">{getDisplayName(key, result)}</span>
+                                  <Badge 
+                                    variant="secondary"
+                                    className={
+                                      result.result === "success" 
+                                        ? "bg-green-100 text-green-800" 
+                                        : "bg-red-100 text-red-800"
+                                    }
+                                  >
+                                    {result.result}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-gray-600">{result.rationale}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-              
-              <div style={{ display: activeTab === "report" ? "block" : "none" }}>
-                {/* OverallReport with all required props */}
-                <OverallReport 
-                  sessions={sessions} 
-                  currentPrompt={currentAgentPrompt}
-                  onPromptUpdate={handlePromptUpdate}
-                  currentAgentInfo={currentAgentInfo}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Conversation Replay Modal */}
-        <ConversationReplayModal
-          isOpen={isModalOpen}
-          onOpenChange={setIsModalOpen}
-          selectedSession={selectedSession}
-          evaluationCriteria={evaluationCriteria}
-        />
-
-        {/* Voice Settings Modal */}
-        <VoiceSettingsModal
-          isOpen={isVoiceSettingsOpen}
-          onOpenChange={setIsVoiceSettingsOpen}
-        />
-
-        {/* Evaluation Criteria Modal */}
-        <EvaluationCriteriaModal
-          isOpen={isCriteriaModalOpen}
-          onOpenChange={setIsCriteriaModalOpen}
-          criteria={evaluationCriteria}
-          onSave={handleCriteriaSave}
-        />
-      </div>
-    </div>
+                {/* Fixed Play Bar - Only shows on conversation tab */}
+                {activeTab === "conversation" && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3">
+                    <div className="flex justify-center gap-2 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSkipBack}
+                        disabled={currentMessageIndex <= 0}
+                        className="flex items-center justify-center w-10 h-10 p-0 rounded-full disabled:opacity-50"
+                      >
+                        <SkipBack className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePlayToggle}
+                        className="flex items-center justify-center w-10 h-10 p-0 rounded-full"
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4" />
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSkipForward}
+                        disabled={
+                          !selectedSession?.simulationResult || 
+                          currentMessageIndex >= getFilteredMessages().length - 1
+                        }
+                        className="flex items-center justify-center w-10 h-10 p-0 rounded-full disabled:opacity-50"
+                      >
+                        <SkipForward className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    {/* Progress indicator */}
+                    <div className="text-center text-xs text-gray-500">
+                      Message {currentMessageIndex + 1} of {getFilteredMessages().length}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <div className="text-gray-500 text-center py-8">
+            No session selected.
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
