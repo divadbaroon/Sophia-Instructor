@@ -354,23 +354,6 @@ export function AgentConfiguration({ onPromptChange, onCriteriaUpdate, onAgentIn
             </div>
           ) : agentInfo ? (
             <div className="space-y-6">
-              {/* Agent Name */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Agent Name</label>
-                {isEditing ? (
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    placeholder="Enter agent name"
-                    className="text-sm"
-                  />
-                ) : (
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <span className="text-sm text-gray-900">{agentInfo.name}</span>
-                  </div>
-                )}
-              </div>
-
               {/* First Message */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">First Message</label>

@@ -46,7 +46,6 @@ export async function POST(req: NextRequest) {
 
    // Build the user prompt with agent information
    let userPrompt = `Please generate evaluation criteria for this AI teaching agent:\n\n`;
-   userPrompt += `**Agent Name:** ${agentName || 'Teaching Agent'}\n\n`;
    
    if (firstMessage) {
      userPrompt += `**First Message:** ${firstMessage}\n\n`;
