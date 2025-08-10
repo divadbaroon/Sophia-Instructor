@@ -35,7 +35,7 @@ Do not include any explanatory text, markdown formatting, or code blocks. Return
 export async function POST(req: NextRequest) {
  try {
    const body = await req.json();
-   const { agentPrompt, agentName, firstMessage } = body;
+   const { agentPrompt, firstMessage } = body;
 
    if (!agentPrompt || typeof agentPrompt !== 'string') {
      return NextResponse.json(

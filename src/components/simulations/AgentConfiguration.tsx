@@ -118,7 +118,6 @@ export function AgentConfiguration({ onPromptChange, onCriteriaUpdate, onAgentIn
         },
         body: JSON.stringify({
           agentPrompt: agentInfo.prompt,
-          agentName: agentInfo.name,
           firstMessage: agentInfo.first_message
         })
       });
