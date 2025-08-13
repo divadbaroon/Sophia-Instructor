@@ -6,7 +6,7 @@ import ReplayWorkspaceLayout from "@/components/replay/replay-work-space/ReplayW
 import ReplayProgressBar from "@/components/replay/replay-progress-bar/ReplayProgressBar"
 import ReplayProvider from '@/lib/providers/replay-provider/ReplayProvider';
 
-const ReplaysPage = () => {
+const ReplayPage = () => {
   return (
     <ReplayProvider>
       <div className="relative h-screen">
@@ -20,4 +20,4 @@ const ReplaysPage = () => {
   );
 };
 
-export default ReplaysPage;
+export default ReplayPage;
