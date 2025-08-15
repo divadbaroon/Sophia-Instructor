@@ -29,3 +29,12 @@ export interface Session {
   simulationResult?: SimulationResult;
   status: "pending" | "running" | "completed" | "error";
 }
+
+export interface TaskData {
+  tasks: TaskProps[]
+  methodTemplates: Record<string, string>
+  testCases: Record<string, TestCase[]>
+  conceptMappings: Record<number, string[]>
+  conceptMap?: ConceptMap 
+  system: string
+}
