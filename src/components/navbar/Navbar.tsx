@@ -84,6 +84,7 @@ export default function Navigation({ user }: NavigationProps) {
     pathname.includes("sessions") || pathname.includes("/login") || pathname.includes("/sign-up") 
     || pathname.includes("/concepts") || pathname.includes("/dashboard") || pathname.includes("/progress")
     || pathname.includes("/invitation") || pathname.includes("/configuration") || pathname.includes("/voice-cloning") 
+    || pathname.includes("/replay") 
 
   return (
     <nav
