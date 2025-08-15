@@ -2,22 +2,24 @@
 
 import React from 'react';
 
-import ReplayWorkspaceLayout from "@/components/replay/replay-work-space/ReplayWorkSpace"
-import ReplayProgressBar from "@/components/replay/replay-progress-bar/ReplayProgressBar"
-import ReplayProvider from '@/lib/providers/replay-provider/ReplayProvider';
+import { SimulationWorkspaceLayout } from "@/components/replay/replay-work-space/ReplayWorkSpace"
+import { SimulationProgressBar } from "@/components/replay/replay-playback-controller/ReplayPlaybackController"
+import { SimulationProvider } from '@/lib/providers/replay-provider/ReplayProvider';
 
-const ReplayPage = () => {
+const SimulationPage = () => {
   return (
-    <ReplayProvider>
+    <SimulationProvider>
       <div className="relative h-screen">
+        {/* Main workspace */}
         <div className="h-full pb-24">
-          <ReplayWorkspaceLayout />
+          <SimulationWorkspaceLayout />
         </div>
         
-        <ReplayProgressBar />
+        {/* Progress bar */}
+        <SimulationProgressBar />
       </div>
-    </ReplayProvider>
+    </SimulationProvider>
   );
 };
 
-export default ReplayPage;
+export default SimulationPage;
