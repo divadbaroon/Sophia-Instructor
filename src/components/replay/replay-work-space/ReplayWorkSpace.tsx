@@ -173,7 +173,7 @@ export const SimulationWorkspaceLayout: React.FC = () => {
                       {/* Sophia panel*/}
                       {isQuestionPanelVisible && (
                         <div className="absolute -top-1 right-6 w-80 z-30 bg-background border rounded-xl shadow-xl max-h-80 overflow-hidden">
-                          <SimulationSophiaPanel onClose={onCloseSophia} />
+                          <SimulationSophiaPanel/>
                         </div>
                       )}
                     </div>
