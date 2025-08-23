@@ -2,8 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
-import { fetchSessionReplayData, SessionReplayData } from '@/lib/actions/session-replay-data-actions';
+import { fetchSessionReplayData } from '@/lib/actions/session-replay-data-actions';
 import { useSessionData } from '@/lib/hooks/session/useSessionData';
+
+import { SessionReplayData } from "@/types"
 
 interface SimulationContextType {
   // Session data
@@ -38,7 +40,6 @@ interface SimulationContextType {
   }
   testResultsUpToCurrentTime: any[]
   navigationEventsUpToCurrentTime: any[]
-  visualizationInteractionsUpToCurrentTime: any[]
   userHighlightsUpToCurrentTime: any[]
   codeErrorsUpToCurrentTime: any[]
   taskProgressUpToCurrentTime: any[]
@@ -264,16 +265,6 @@ export const SimulationProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [sessionData, currentTime]);
 
-  const visualizationInteractionsUpToCurrentTime = useMemo(() => {
-    if (!sessionData) return [];
-    
-    const sessionStart = sessionData.sessionInfo.started_at;
-    return sessionData.visualizationInteractions.filter(interaction => {
-      const interactionTime = getTimeFromStart(interaction.timestamp, sessionStart);
-      return interactionTime <= currentTime;
-    });
-  }, [sessionData, currentTime]);
-
   const userHighlightsUpToCurrentTime = useMemo(() => {
     if (!sessionData) return [];
     
@@ -333,7 +324,6 @@ export const SimulationProvider = ({ children }: { children: ReactNode }) => {
     sophiaStateAtCurrentTime,
     testResultsUpToCurrentTime,
     navigationEventsUpToCurrentTime,
-    visualizationInteractionsUpToCurrentTime,
     userHighlightsUpToCurrentTime,
     codeErrorsUpToCurrentTime,
     taskProgressUpToCurrentTime,
@@ -382,7 +372,6 @@ export const SimulationProvider = ({ children }: { children: ReactNode }) => {
     });
     
     console.log('👆 Interactions:', {
-      visualizationClicks: visualizationInteractionsUpToCurrentTime.length,
       userHighlights: userHighlightsUpToCurrentTime.length,
       codeErrors: codeErrorsUpToCurrentTime.length
     });
@@ -412,7 +401,6 @@ export const SimulationProvider = ({ children }: { children: ReactNode }) => {
     sophiaStateAtCurrentTime,
     testResultsUpToCurrentTime,
     navigationEventsUpToCurrentTime,
-    visualizationInteractionsUpToCurrentTime,
     userHighlightsUpToCurrentTime,
     codeErrorsUpToCurrentTime,
     taskProgressUpToCurrentTime
