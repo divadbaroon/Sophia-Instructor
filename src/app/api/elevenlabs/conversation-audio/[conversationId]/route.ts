@@ -7,45 +7,48 @@ export async function GET(
   try {
     const { conversationId } = await params
     
-    console.log(`🎵 Fetching ElevenLabs audio for conversation: ${conversationId}`)
+    console.log(`🎵 Simple fetch for conversation: ${conversationId}`)
     
     const apiKey = process.env.ELEVENLABS_API_KEY
     if (!apiKey) {
-      console.error('❌ ELEVENLABS_API_KEY not found')
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
+      console.error('❌ No API key')
+      return NextResponse.json({ error: 'No API key' }, { status: 500 })
     }
     
-    // Follow ElevenLabs documentation exactly
     const url = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}/audio`
     const options = {
-      method: 'GET', 
+      method: 'GET',
       headers: {
         'xi-api-key': apiKey
       }
     }
     
+    console.log(`🎵 Calling: ${url}`)
+    
     const response = await fetch(url, options)
+    
+    console.log(`🎵 Response: ${response.status} ${response.statusText}`)
+    console.log(`🎵 Headers:`, Object.fromEntries(response.headers.entries()))
     
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ ElevenLabs API error (${response.status}):`, errorText)
-      return NextResponse.json({ error: `ElevenLabs API error: ${response.status}` }, { status: response.status })
+      console.error(`❌ Error: ${response.status} - ${errorText}`)
+      return NextResponse.json({ error: `API Error: ${response.status}` }, { status: response.status })
     }
     
-    // Return the audio blob directly
     const audioBlob = await response.blob()
-    console.log(`✅ Audio fetched successfully (${audioBlob.size} bytes)`)
+    console.log(`✅ Got blob: ${audioBlob.size} bytes, type: ${audioBlob.type}`)
     
     return new NextResponse(audioBlob, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'audio/mpeg',
-        'Cache-Control': 'public, max-age=3600',
       },
     })
     
   } catch (error) {
-    console.error('💥 Error in conversation audio API:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('💥 Error:', errorMessage)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
