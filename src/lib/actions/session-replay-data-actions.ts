@@ -2,127 +2,10 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-export interface SessionReplayData {
-  // Session metadata
-  sessionInfo: {
-    id: string
-    profile_id: string
-    class_id: string
-    lesson_id: string
-    status: string
-    started_at: string
-    completed_at: string | null
-    duration_ms: number | null
-  }
-  
-  // All timestamped events for replay
-  codeSnapshots: Array<{
-    id: string
-    task_index: number
-    method_id: string
-    code_content: string
-    created_at: string
-  }>
-  
-  navigationEvents: Array<{
-    id: string
-    from_task_index: number
-    to_task_index: number
-    navigation_direction: string
-    timestamp: string
-  }>
-  
-  strokeData: Array<{
-    id: string
-    task: string
-    zone: string
-    stroke_number: number
-    point_count: number
-    complete_points: any[]
-    start_point: any
-    end_point: any
-    created_at: string
-  }>
-  
-  visualizationInteractions: Array<{
-    id: string
-    task: string
-    action: string
-    zone: string
-    x: number
-    y: number
-    timestamp: string
-  }>
-  
-  testResults: Array<{
-    id: string
-    task_index: number
-    method_id: string
-    test_case_index: number
-    test_input: any
-    expected_output: any
-    actual_output: any
-    passed: boolean
-    error_message: string | null
-    created_at: string
-  }>
-  
-  sophiaButtonInteractions: Array<{
-    id: string
-    current_task_index: number
-    interaction_type: string
-    timestamp: string
-  }>
-  
-  sophiaConversations: Array<{
-    id: string
-    conversation_id: string  // ElevenLabs conversation ID
-    session_id: string
-    start_time: string
-    end_time: string | null
-    created_at: string
-  }>
-  
-  sophiaHighlights: Array<{
-    id: string
-    line_number: number
-    highlighted_at: string
-  }>
-  
-  userHighlights: Array<{
-    id: string
-    highlighted_text: string
-    highlighted_at: string
-  }>
-  
-  messages: Array<{
-    id: string
-    content: string
-    role: string
-    created_at: string
-  }>
-  
-  codeErrors: Array<{
-    id: string
-    task_index: number
-    error_message: string
-    created_at: string
-  }>
-  
-  taskProgress: Array<{
-    id: string
-    task_index: number
-    completed: boolean
-    completed_at: string | null
-    attempts: number
-    test_cases_passed: number
-    total_test_cases: number
-    created_at: string
-  }>
-}
+import { SessionReplayData } from "@/types"
 
 /**
- * Fetch all session data needed for replay - WITH DEBUGGING
+ * Fetch all session data needed for replay
  */
 export async function fetchSessionReplayData(sessionId: string) {
   console.log('🔍 Starting fetchSessionReplayData for:', sessionId)
@@ -130,36 +13,6 @@ export async function fetchSessionReplayData(sessionId: string) {
   const supabase = await createClient()
 
   try {
-    // First, let's check if the session exists at all
-    console.log('🔍 Checking if session exists...')
-    const { data: sessionCheck, error: sessionCheckError } = await supabase
-      .from('learning_sessions')
-      .select('id')
-      .eq('id', sessionId)
-      
-    console.log('🔍 Session check result:', { sessionCheck, sessionCheckError })
-    
-    if (sessionCheckError) {
-      console.error('❌ Session check error:', sessionCheckError)
-      return { success: false, error: `Session check failed: ${sessionCheckError.message}` }
-    }
-    
-    if (!sessionCheck || sessionCheck.length === 0) {
-      console.error('❌ Session not found in database')
-      
-      // Let's also check what sessions DO exist
-      const { data: allSessions, error: allSessionsError } = await supabase
-        .from('learning_sessions')
-        .select('id, status, started_at')
-        .limit(5)
-        
-      console.log('📋 Available sessions (first 5):', allSessions)
-      
-      return { success: false, error: 'Session not found in database' }
-    }
-
-    console.log('✅ Session exists, getting full session info...')
-
     // Get session info with full details
     const { data: sessionInfo, error: sessionError } = await supabase
       .from('learning_sessions')
@@ -181,7 +34,6 @@ export async function fetchSessionReplayData(sessionId: string) {
 
     console.log('⏱️ Session duration:', durationMs, 'ms')
 
-    // Now let's check each data source individually with debug info
     console.log('🔍 Fetching code snapshots...')
     const codeSnapshots = await supabase
       .from('code_snapshots')
@@ -202,21 +54,18 @@ export async function fetchSessionReplayData(sessionId: string) {
 
     console.log('🔍 Fetching stroke data...')
     const strokeData = await supabase
-      .from('visualization_stroke_data')
-      .select('id, task, zone, stroke_number, point_count, complete_points, start_point, end_point, created_at')
-      .eq('session_id', sessionId)
-      .order('created_at')
-      
+    .from('visualization_stroke_data')
+    .select('*')  
+    .eq('session_id', sessionId)
+    .order('created_at')
+    
     console.log('🎨 Stroke data:', strokeData.data?.length || 0, 'entries')
-
-    console.log('🔍 Fetching visualization interactions...')
-    const visualizationInteractions = await supabase
-      .from('visualization_interactions')
-      .select('id, task, action, zone, x, y, timestamp')
-      .eq('session_id', sessionId)
-      .order('timestamp')
-      
-    console.log('👆 Visualization interactions:', visualizationInteractions.data?.length || 0, 'entries')
+    if (strokeData.data && strokeData.data.length > 0) {
+    console.log('🎨 First stroke entry structure:', strokeData.data[0])
+    }
+    if (strokeData.error) {
+    console.error('🎨 Stroke data error:', strokeData.error)
+}
 
     console.log('🔍 Fetching test results...')
     const testResults = await supabase
@@ -298,7 +147,6 @@ export async function fetchSessionReplayData(sessionId: string) {
       codeSnapshots.error,
       navigationEvents.error,
       strokeData.error,
-      visualizationInteractions.error,
       testResults.error,
       sophiaButtonInteractions.error,
       sophiaConversations.error,
@@ -323,7 +171,6 @@ export async function fetchSessionReplayData(sessionId: string) {
       codeSnapshots: codeSnapshots.data || [],
       navigationEvents: navigationEvents.data || [],
       strokeData: strokeData.data || [],
-      visualizationInteractions: visualizationInteractions.data || [],
       testResults: testResults.data || [],
       sophiaButtonInteractions: sophiaButtonInteractions.data || [],
       sophiaConversations: sophiaConversations.data || [],
@@ -337,7 +184,6 @@ export async function fetchSessionReplayData(sessionId: string) {
     const totalEvents = replayData.codeSnapshots.length + 
                        replayData.navigationEvents.length + 
                        replayData.strokeData.length + 
-                       replayData.visualizationInteractions.length + 
                        replayData.testResults.length + 
                        replayData.messages.length
 
@@ -345,7 +191,6 @@ export async function fetchSessionReplayData(sessionId: string) {
       codeSnapshots: replayData.codeSnapshots.length,
       navigationEvents: replayData.navigationEvents.length,
       strokeData: replayData.strokeData.length,
-      visualizationInteractions: replayData.visualizationInteractions.length,
       testResults: replayData.testResults.length,
       sophiaButtonInteractions: replayData.sophiaButtonInteractions.length,
       sophiaConversations: replayData.sophiaConversations.length,
